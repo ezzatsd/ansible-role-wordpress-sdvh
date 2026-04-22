@@ -1,0 +1,23 @@
+---
+- name: Definir les variables RedHat
+  ansible.builtin.set_fact:
+    wordpress_web_root: /var/www/html
+    wordpress_web_owner: apache
+    wordpress_web_group: apache
+
+- name: Mettre a jour les paquets RedHat
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+
+- name: Installer les paquets WordPress RedHat
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ wordpress_redhat_packages }}"
+
+- name: Supprimer la page HTTPD par defaut RedHat
+  ansible.builtin.file:
+    path: /var/www/html/index.html
+    state: absent
+

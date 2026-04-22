@@ -1,0 +1,13 @@
+---
+- name: Redemarrer Apache Debian
+  listen: Redemarrer le serveur web
+  ansible.builtin.command: service apache2 restart
+  changed_when: false
+  when: ansible_os_family == "Debian"
+
+- name: Redemarrer HTTPD RedHat
+  listen: Redemarrer le serveur web
+  ansible.builtin.shell: /usr/sbin/httpd -k graceful || /usr/sbin/httpd
+  changed_when: false
+  when: ansible_os_family == "RedHat"
+

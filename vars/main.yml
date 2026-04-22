@@ -1,0 +1,15 @@
+---
+wordpress_debian_packages:
+  - apache2
+  - libapache2-mod-php
+  - php-mysql
+  - mariadb-server
+  - tar
+
+wordpress_redhat_packages:
+  - httpd
+  - php
+  - php-fpm
+  - php-mysqlnd
+  - mariadb-server
+  - tar

@@ -1,0 +1,28 @@
+---
+galaxy_info:
+  author: ezzat
+  description: Deploy WordPress with MariaDB on Ubuntu and Rocky Linux containers.
+  company: SDVH
+  license: MIT
+  min_ansible_version: "2.14"
+
+  platforms:
+    - name: Ubuntu
+      versions:
+        - all
+    - name: Debian
+      versions:
+        - all
+    - name: EL
+      versions:
+        - "9"
+
+  galaxy_tags:
+    - wordpress
+    - mariadb
+    - apache
+    - httpd
+    - web
+
+dependencies: []
+

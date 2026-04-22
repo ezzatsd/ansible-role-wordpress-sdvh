@@ -1,0 +1,119 @@
+---
+- name: Charger les variables Debian
+  ansible.builtin.include_tasks: debian.yml
+  when: ansible_os_family == "Debian"
+
+- name: Charger les variables RedHat
+  ansible.builtin.include_tasks: redhat.yml
+  when: ansible_os_family == "RedHat"
+
+- name: Creer le repertoire web
+  ansible.builtin.file:
+    path: "{{ wordpress_web_root }}"
+    state: directory
+    owner: "{{ wordpress_web_owner }}"
+    group: "{{ wordpress_web_group }}"
+    mode: "0755"
+
+- name: Preparer les repertoires MariaDB
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: "0755"
+  loop:
+    - /run/mysqld
+    - /var/lib/mysql
+
+- name: Initialiser MariaDB si necessaire
+  ansible.builtin.shell: |
+    if [ ! -d /var/lib/mysql/mysql ]; then
+      mariadb-install-db --user=mysql --datadir=/var/lib/mysql || mysql_install_db --user=mysql --datadir=/var/lib/mysql
+    fi
+  changed_when: false
+
+- name: Demarrer MariaDB dans le conteneur
+  ansible.builtin.shell: |
+    pgrep -x mariadbd >/dev/null || pgrep -x mysqld >/dev/null || mysqld_safe --user=mysql --datadir=/var/lib/mysql --socket=/run/mysqld/mysqld.sock >/tmp/mariadb.log 2>&1 &
+  changed_when: false
+
+- name: Attendre MariaDB
+  ansible.builtin.command: mysqladmin --protocol=tcp -h127.0.0.1 ping
+  register: wordpress_mariadb_ping
+  retries: 10
+  delay: 2
+  until: wordpress_mariadb_ping.rc == 0
+  changed_when: false
+
+- name: Creer la base WordPress
+  ansible.builtin.command: mysql -uroot --socket=/run/mysqld/mysqld.sock -e "CREATE DATABASE IF NOT EXISTS {{ wordpress_db_name }};"
+  changed_when: false
+
+- name: Creer l'utilisateur WordPress
+  ansible.builtin.command: mysql -uroot --socket=/run/mysqld/mysqld.sock -e "CREATE USER IF NOT EXISTS '{{ wordpress_db_user }}'@'localhost' IDENTIFIED BY '{{ wordpress_db_password }}'; CREATE USER IF NOT EXISTS '{{ wordpress_db_user }}'@'127.0.0.1' IDENTIFIED BY '{{ wordpress_db_password }}';"
+  changed_when: false
+
+- name: Accorder les privileges WordPress
+  ansible.builtin.command: mysql -uroot --socket=/run/mysqld/mysqld.sock -e "GRANT ALL PRIVILEGES ON {{ wordpress_db_name }}.* TO '{{ wordpress_db_user }}'@'localhost'; GRANT ALL PRIVILEGES ON {{ wordpress_db_name }}.* TO '{{ wordpress_db_user }}'@'127.0.0.1'; FLUSH PRIVILEGES;"
+  changed_when: false
+
+- name: Telecharger et extraire WordPress
+  ansible.builtin.unarchive:
+    src: "{{ wordpress_download_url }}"
+    dest: /tmp
+    remote_src: true
+    creates: "{{ wordpress_tmp_dir }}/wp-settings.php"
+
+- name: Deployer les fichiers WordPress
+  ansible.builtin.command: cp -a "{{ wordpress_tmp_dir }}/." "{{ wordpress_web_root }}/"
+  args:
+    creates: "{{ wordpress_web_root }}/wp-settings.php"
+  notify: Redemarrer le serveur web
+
+- name: Generer wp-config.php
+  ansible.builtin.template:
+    src: wp-config.php.j2
+    dest: "{{ wordpress_web_root }}/wp-config.php"
+    owner: "{{ wordpress_web_owner }}"
+    group: "{{ wordpress_web_group }}"
+    mode: "0640"
+  notify: Redemarrer le serveur web
+
+- name: Corriger les permissions WordPress
+  ansible.builtin.file:
+    path: "{{ wordpress_web_root }}"
+    owner: "{{ wordpress_web_owner }}"
+    group: "{{ wordpress_web_group }}"
+    recurse: true
+
+- name: Arreter NGINX si deja present
+  ansible.builtin.shell: |
+    if command -v nginx >/dev/null 2>&1; then
+      nginx -s quit >/dev/null 2>&1 || pkill nginx >/dev/null 2>&1 || true
+    fi
+  changed_when: false
+
+- name: Creer le repertoire runtime PHP-FPM RedHat
+  ansible.builtin.file:
+    path: /run/php-fpm
+    state: directory
+    owner: apache
+    group: apache
+    mode: "0755"
+  when: ansible_os_family == "RedHat"
+
+- name: Demarrer PHP-FPM RedHat
+  ansible.builtin.shell: test -S /run/php-fpm/www.sock || /usr/sbin/php-fpm -D
+  changed_when: false
+  when: ansible_os_family == "RedHat"
+
+- name: Demarrer le serveur web Debian
+  ansible.builtin.command: service apache2 start
+  changed_when: false
+  when: ansible_os_family == "Debian"
+
+- name: Demarrer le serveur web RedHat
+  ansible.builtin.shell: ss -lnt | grep ':80 ' || /usr/sbin/httpd
+  changed_when: false
+  when: ansible_os_family == "RedHat"

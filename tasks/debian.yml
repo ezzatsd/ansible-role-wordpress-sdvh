@@ -1,0 +1,22 @@
+---
+- name: Definir les variables Debian
+  ansible.builtin.set_fact:
+    wordpress_web_root: /var/www/html
+    wordpress_web_owner: www-data
+    wordpress_web_group: www-data
+
+- name: Mettre a jour le cache APT
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Installer les paquets WordPress Debian
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ wordpress_debian_packages }}"
+
+- name: Supprimer la page Apache par defaut Debian
+  ansible.builtin.file:
+    path: /var/www/html/index.html
+    state: absent
+
