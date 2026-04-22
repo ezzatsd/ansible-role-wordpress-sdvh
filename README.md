@@ -71,4 +71,3 @@ Pousser ce role dans un depot public GitHub/GitLab, puis l'importer depuis Ansib
 ## Licence
 
 MIT
-
